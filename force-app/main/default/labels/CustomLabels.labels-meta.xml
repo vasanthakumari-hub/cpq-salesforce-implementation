@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomLabels xmlns="http://soap.sforce.com/2006/04/metadata">
+    <labels>
+        <fullName>Loan_App_Header</fullName>
+        <language>en_US</language>
+        <protected>false</protected>
+        <shortDescription>Loan Application Header</shortDescription>
+        <value>Lending Management System - Create New Application</value>
+    </labels>
+</CustomLabels>

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomObject xmlns="http://soap.sforce.com/2006/04/metadata">
+    <deploymentStatus>Deployed</deploymentStatus>
+    <description>Defines the specific terms (Interest, Duration) for a loan application.</description>
+    <enableActivities>false</enableActivities>
+    <enableReports>true</enableReports>
+    <label>Loan Term</label>
+    <nameField>
+        <label>Term Name</label>
+        <type>Text</type>
+    </nameField>
+    <pluralLabel>Loan Terms</pluralLabel>
+    <sharingModel>ControlledByParent</sharingModel>
+    <visibility>Public</visibility>
+</CustomObject>
