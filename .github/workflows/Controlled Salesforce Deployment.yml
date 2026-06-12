@@ -1,1 +1,72 @@
+name: Controlled Salesforce Deployment
 
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Select deployment target'
+        required: true
+        default: 'sandbox'
+        type: choice
+        options:
+          - sandbox
+          - production
+      confirm_deploy:
+        description: 'Type DEPLOY to confirm'
+        required: true
+        type: string
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true   # Suppress Node.js warning
+
+jobs:
+  gate-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate confirmation
+        run: |
+          if [ "${{ github.event.inputs.confirm_deploy }}" != "DEPLOY" ]; then
+            echo "❌ Type DEPLOY to confirm"
+            exit 1
+          fi
+          echo "✅ Gate passed → ${{ github.event.inputs.environment }}"
+
+  deploy-to-salesforce:
+    needs: gate-check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Install Salesforce CLI
+        run: npm install -g @salesforce/cli
+
+      - name: Authenticate
+        run: |
+          if [ "${{ github.event.inputs.environment }}" == "production" ]; then
+            echo "${{ secrets.SFDX_AUTH_URL_PROD }}" > auth_url.txt
+          else
+            echo "${{ secrets.SFDX_AUTH_URL_SANDBOX }}" > auth_url.txt
+          fi
+          sf org login sfdx-url -f auth_url.txt -a target-org
+          rm -f auth_url.txt
+
+      - name: Validate & Deploy
+        run: |
+          if [ -d "force-app/main/default" ]; then
+            echo "🔍 Validating..."
+            sf project deploy start \
+              --manifest force-app/main/default/package.xml \
+              --test-level RunLocalTests \
+              --dry-run --target-org target-org --wait 30
+            echo "🚀 Deploying to ${{ github.event.inputs.environment }}..."
+            sf project deploy start \
+              --manifest force-app/main/default/package.xml \
+              --test-level RunLocalTests \
+              --target-org target-org --wait 60
+            echo "✅ Done!"
+          else
+            echo "❌ force-app/main/default not found"
+            exit 1
+          fi
