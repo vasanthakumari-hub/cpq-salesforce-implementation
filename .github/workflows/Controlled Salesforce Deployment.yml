@@ -86,7 +86,13 @@ jobs:
                       print(f"  ✅ {fp}")
               return extracted
 
-          agent_files = ['developer-agent.md','devops-agent.md','admin-agent.md','qa-agent.md']
+          agent_files = [
+              'developer-agent.md',
+              'devops-agent.md',
+              'admin-agent.md',
+              'qa-agent.md'
+          ]
+
           all_md = list(pathlib.Path('docs/requirements').rglob('*.md'))
           print(f"Found {len(all_md)} .md files\n")
 
@@ -97,23 +103,30 @@ jobs:
               if not any(a in md.name for a in agent_files):
                   continue
               print(f"📄 {md}")
-              total.extend(extract_from_file(md))
+              files = extract_from_file(md)
+              total.extend(files)
+              if not files:
+                  print(f"  ⚠️  No matching file paths found in {md.name}")
 
-          print(f"\n✅ Total: {len(total)} files extracted")
+          print(f"\n{'='*50}")
+          print(f"✅ Total extracted: {len(total)} files")
           for f in total:
               print(f"  → {f}")
           PYEOF
 
-      - name: Create sfdx-project.json
+      - name: Create sfdx-project.json      # ← Fixed step
         run: |
-          [ ! -f sfdx-project.json ] && cat > sfdx-project.json << 'EOF'
-          {
-            "packageDirectories": [{"path": "force-app", "default": true}],
-            "namespace": "",
-            "sfdcLoginUrl": "https://login.salesforce.com",
-            "sourceApiVersion": "59.0"
-          }
-          EOF
+          if [ ! -f "sfdx-project.json" ]; then
+            echo '{
+              "packageDirectories": [{"path": "force-app", "default": true}],
+              "namespace": "",
+              "sfdcLoginUrl": "https://login.salesforce.com",
+              "sourceApiVersion": "59.0"
+            }' > sfdx-project.json
+            echo "✅ Created sfdx-project.json"
+          else
+            echo "ℹ️ sfdx-project.json already exists"
+          fi
 
       - name: Check and commit changes
         id: check_changes
@@ -124,12 +137,13 @@ jobs:
             echo "ℹ️ Nothing new to commit"
           else
             echo "has_changes=true" >> $GITHUB_OUTPUT
-            echo "📦 Staging these files:"
+            echo "📦 Files to commit:"
             git diff --staged --name-only
             git config user.email "github-actions[bot]@users.noreply.github.com"
             git config user.name "github-actions[bot]"
             git commit -m "feat(sf): extract [${{ github.event.inputs.requirement_folder }}] $(date +'%Y-%m-%d %H:%M')"
             git push origin main
+            echo "✅ Pushed to GitHub"
           fi
 
   deploy-to-salesforce:
