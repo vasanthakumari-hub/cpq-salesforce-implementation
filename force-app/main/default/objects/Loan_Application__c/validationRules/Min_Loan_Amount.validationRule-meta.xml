@@ -1,9 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<ValidationRule xmlns="http://soap.sforce.com/2006/04/metadata">
-    <fullName>Min_Loan_Amount</fullName>
-    <active>true</active>
-    <description>Ensures the loan amount is at least $1,000.</description>
-    <errorConditionFormula>Loan_Amount__c &lt; 1000</errorConditionFormula>
-    <errorDisplayField>Loan_Amount__c</errorDisplayField>
-    <errorMessage>The minimum loan amount allowed is $1,000.00.</errorMessage>
-</ValidationRule>
