@@ -1,0 +1,14 @@
+<template>
+    <lightning-card title="Fleet Management" icon-name="standard:car">
+        <div class="slds-m-around_medium">
+            <template lwc:if={vehicles}>
+                <template for:each={vehicles} for:item="v">
+                    <p key={v.Id}>{v.Name} - {v.VIN__c}</p>
+                </template>
+            </template>
+            <template lwc:elseif={error}>
+                <p class="slds-text-color_error">Error loading data.</p>
+            </template>
+        </div>
+    </lightning-card>
+</template>

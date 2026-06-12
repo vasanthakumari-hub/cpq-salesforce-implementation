@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Fleet_Vehicle__c</fullName>
+    <label>Fleet Vehicle</label>
+    <referenceTo>Fleet_Vehicle__c</referenceTo>
+    <relationshipLabel>Vehicle Maintenances</relationshipLabel>
+    <relationshipName>Vehicle_Maintenances</relationshipName>
+    <required>true</required>
+    <trackHistory>false</trackHistory>
+    <type>Lookup</type>
+</CustomField>
