@@ -59,7 +59,21 @@ jobs:
             sf project deploy start \
               --manifest force-app/main/default/package.xml \
               --test-level RunLocalTests \
-              --dry-run --target-org target-org --wait 30
+              --dry-run --target-org target-org --wait 30 \
+              --json > deploy_result.json 2>&1 || true
+            
+            echo "📋 Test Failures:"
+            cat deploy_result.json | python3 -c "
+          import json, sys
+          data = json.load(sys.stdin)
+          result = data.get('result', {})
+          failures = result.get('details', {}).get('runTestResult', {}).get('failures', [])
+          for f in failures:
+              print(f'❌ {f.get(\"methodName\")} — {f.get(\"message\")}')
+              print(f'   {f.get(\"stackTrace\",\"\")}')
+              print()
+          " 2>/dev/null || cat deploy_result.json
+
             echo "🚀 Deploying to ${{ github.event.inputs.environment }}..."
             sf project deploy start \
               --manifest force-app/main/default/package.xml \
