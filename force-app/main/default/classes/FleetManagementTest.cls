@@ -62,4 +62,26 @@ private class FleetManagementTest {
             Test.stopTest();
         }
     }
+@isTest
+    static void testGetVehicleById_Positive() {
+        Fleet_Vehicle__c v = [SELECT Id FROM Fleet_Vehicle__c LIMIT 1];
+        
+        Test.startTest();
+        Fleet_Vehicle__c result = FleetManagementController.getVehicleById(v.Id);
+        Test.stopTest();
+        
+        Assert.areEqual(v.Id, result.Id, 'Should return correct vehicle by Id');
+    }
+
+    @isTest
+    static void testDeleteVehicle_Positive() {
+        Fleet_Vehicle__c v = [SELECT Id FROM Fleet_Vehicle__c LIMIT 1];
+        
+        Test.startTest();
+        FleetManagementController.deleteVehicle(v.Id);
+        Test.stopTest();
+        
+        List<Fleet_Vehicle__c> remaining = [SELECT Id FROM Fleet_Vehicle__c WHERE Id = :v.Id];
+        Assert.areEqual(0, remaining.size(), 'Vehicle should be deleted');
+    }
 }
