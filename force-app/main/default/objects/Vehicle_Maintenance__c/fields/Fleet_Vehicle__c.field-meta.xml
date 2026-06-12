@@ -5,7 +5,8 @@
     <referenceTo>Fleet_Vehicle__c</referenceTo>
     <relationshipLabel>Vehicle Maintenances</relationshipLabel>
     <relationshipName>Vehicle_Maintenances</relationshipName>
-    <required>true</required>
+    <required>false</required>
+    <deleteConstraint>SetNull</deleteConstraint>
     <trackHistory>false</trackHistory>
     <type>Lookup</type>
 </CustomField>
