@@ -1,0 +1,87 @@
+name: Controlled Salesforce Deployment
+
+on:
+  workflow_dispatch:          # Only runs when YOU click the button
+    inputs:
+      environment:
+        description: 'Select deployment target'
+        required: true
+        default: 'sandbox'
+        type: choice
+        options:
+          - sandbox
+          - production
+      confirm_deploy:
+        description: 'Type DEPLOY to confirm'
+        required: true
+        type: string
+      requirement_folder:
+        description: 'Requirement folder name (e.g. create-objects-fields-for-loan)'
+        required: true
+        type: string
+
+jobs:
+  gate-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate confirmation
+        run: |
+          if [ "${{ github.event.inputs.confirm_deploy }}" != "DEPLOY" ]; then
+            echo "❌ Confirmation failed. Type DEPLOY to proceed."
+            exit 1
+          fi
+          echo "✅ Confirmed. Proceeding with deployment to ${{ github.event.inputs.environment }}"
+
+  extract-and-deploy:
+    needs: gate-check
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Extract Salesforce code
+        run: |
+          python3 << 'PYEOF'
+          import re, pathlib
+
+          req = "${{ github.event.inputs.requirement_folder }}"
+          md_files = list(pathlib.Path('docs/requirements').rglob('devops-agent.md'))
+
+          for md in md_files:
+              if req.lower() in str(md).lower() or req == 'all':
+                  content = md.read_text()
+                  pattern = r'\*\*File Path:\*\*\s*`([^`]+)`\s*```(?:\w+)?\n(.*?)```'
+                  for path, code in re.findall(pattern, content, re.DOTALL):
+                      out = pathlib.Path(path.strip())
+                      out.parent.mkdir(parents=True, exist_ok=True)
+                      out.write_text(code.strip())
+                      print(f"✅ {path.strip()}")
+          PYEOF
+
+      - name: Commit extracted files
+        run: |
+          git config user.email "actions@github.com"
+          git config user.name "GitHub Actions Bot"
+          git add force-app/ manifest/ scripts/
+          git diff --staged --quiet || git commit -m "deploy(${{ github.event.inputs.environment }}): ${{ github.event.inputs.requirement_folder }}"
+          git push origin main
+
+      - name: Install Salesforce CLI
+        run: npm install -g @salesforce/cli
+
+      - name: Authenticate & Deploy
+        run: |
+          if [ "${{ github.event.inputs.environment }}" == "sandbox" ]; then
+            echo "${{ secrets.SFDX_AUTH_URL_SANDBOX }}" > auth_url.txt
+            sf org login sfdx-url -f auth_url.txt -a target-org
+          else
+            echo "${{ secrets.SFDX_AUTH_URL_PROD }}" > auth_url.txt
+            sf org login sfdx-url -f auth_url.txt -a target-org
+          fi
+          rm auth_url.txt
+          sf project deploy start \
+            --source-dir force-app \
+            --test-level RunLocalTests \
+            --target-org target-org \
+            --wait 60
