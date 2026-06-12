@@ -1,9 +1,9 @@
 @isTest
 public class TestDataFactory {
-    public static List<Loan_Application__c> createLoans(Integer count, Decimal amount) {
-        List<Loan_Application__c> loans = new List<Loan_Application__c>();
+    public static List<Loan__c> createLoans(Integer count, Decimal amount) {
+        List<Loan__c> loans = new List<Loan__c>();
         for(Integer i=0; i<count; i++) {
-            loans.add(new Loan_Application__c(
+            loans.add(new Loan__c(
                 Loan_Amount__c = amount,
                 Term_Months__c = 12,
                 Interest_Rate__c = 5.0,
