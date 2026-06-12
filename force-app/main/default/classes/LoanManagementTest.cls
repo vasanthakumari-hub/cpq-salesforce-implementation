@@ -10,7 +10,7 @@ private class LoanManagementTest {
     static void testLoanTotalCalculationPositive() {
         // Test Logic: Verify calculated fields on Loan creation
         Test.startTest();
-        List<Loan__c> loans = TestDataFactory.createLoans(1, 10000);
+        List<Loan_Application__c> loans = TestDataFactory.createLoans(1, 10000);
         insert loans;
         Test.stopTest();
 
@@ -22,7 +22,7 @@ private class LoanManagementTest {
     @isTest
     static void testLoanNegativeAmount() {
         // Test Logic: Validation Rule Check
-        Loan__c badLoan = new Loan__c(Loan_Amount__c = -100, Term_Months__c = 12);
+        Loan_Application__c  badLoan = new Loan_Application__c (Loan_Amount__c = -100, Term_Months__c = 12);
         
         Test.startTest();
         try {
@@ -37,7 +37,7 @@ private class LoanManagementTest {
     @isTest
     static void testBulkLoanInsertion() {
         // Test Logic: 200+ Records
-        List<Loan__c> bulkLoans = TestDataFactory.createLoans(201, 5000);
+        List<Loan_Application__c> bulkLoans = TestDataFactory.createLoans(201, 5000);
         
         Test.startTest();
         insert bulkLoans;
