@@ -5,7 +5,7 @@
     <externalId>false</externalId>
     <label>Loan Status</label>
     <required>false</required>
-    <trackHistory>true</trackHistory>
+    <trackHistory>false</trackHistory>
     <type>Picklist</type>
     <valueSet>
         <valueSetDefinition>
