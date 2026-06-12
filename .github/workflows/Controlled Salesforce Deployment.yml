@@ -16,206 +16,159 @@ on:
         required: true
         type: string
       requirement_folder:
-        description: 'Requirement folder name (e.g. create-objects-fields-for-loan) or ALL for all requirements'
+        description: 'Requirement folder name or ALL'
         required: true
         default: 'all'
         type: string
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true   # Suppress Node.js warning
+
 jobs:
-  # ─────────────────────────────────────
-  # JOB 1: Gate Check — Validate inputs
-  # ─────────────────────────────────────
   gate-check:
     runs-on: ubuntu-latest
     steps:
-      - name: Validate confirmation keyword
+      - name: Validate confirmation
         run: |
           if [ "${{ github.event.inputs.confirm_deploy }}" != "DEPLOY" ]; then
-            echo "❌ Confirmation failed. You must type DEPLOY exactly."
+            echo "❌ Type DEPLOY to confirm"
             exit 1
           fi
-          echo "✅ Gate passed. Proceeding to: ${{ github.event.inputs.environment }}"
-          echo "📁 Requirement: ${{ github.event.inputs.requirement_folder }}"
+          echo "✅ Gate passed → ${{ github.event.inputs.environment }}"
 
-  # ─────────────────────────────────────
-  # JOB 2: Extract Salesforce files from .md
-  # ─────────────────────────────────────
   extract-and-commit:
     needs: gate-check
     runs-on: ubuntu-latest
     permissions:
-      contents: write        # ← Fix for exit code 128
+      contents: write
     outputs:
       has_changes: ${{ steps.check_changes.outputs.has_changes }}
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4       # ← Fix for Node.js warning
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
-      - name: Extract Salesforce code from devops-agent.md
+      - name: Extract Salesforce code from ALL agent files
         run: |
           python3 << 'PYEOF'
-          import re, pathlib, os
+          import re, pathlib
 
           req_filter = "${{ github.event.inputs.requirement_folder }}".lower()
 
-          def extract_files(md_path):
+          PATTERNS = [
+              r'\*\*File Path:\*\*\s*`([^`]+)`\s*```(?:\w+)?\n(.*?)```',
+              r'`(force-app/[^\s`]+\.(?:xml|cls|trigger|js|html|css|json))`\s*\n+```(?:\w+)?\n(.*?)```',
+              r'\*\*(force-app/[^*\n]+)\*\*\s*\n+```(?:\w+)?\n(.*?)```',
+              r'^(force-app/\S+\.(?:xml|cls|trigger|js|html|css|json))\s*\n```(?:\w+)?\n(.*?)```',
+              r'`((?:manifest|scripts)/[^\s`]+)`\s*\n+```(?:\w+)?\n(.*?)```',
+          ]
+
+          def extract_from_file(md_path):
               content = pathlib.Path(md_path).read_text()
               extracted = []
-
-              # Pattern: **File Path:** `path` followed by code block
-              pattern = r'\*\*File Path:\*\*\s*`([^`]+)`\s*```(?:\w+)?\n(.*?)```'
-              for file_path, code in re.findall(pattern, content, re.DOTALL):
-                  file_path = file_path.strip()
-                  out = pathlib.Path(file_path)
-                  out.parent.mkdir(parents=True, exist_ok=True)
-                  out.write_text(code.strip() + '\n')
-                  extracted.append(file_path)
-                  print(f"✅ Extracted: {file_path}")
-
+              seen = set()
+              for pattern in PATTERNS:
+                  for fp, code in re.findall(pattern, content, re.DOTALL|re.MULTILINE):
+                      fp = fp.strip()
+                      if fp in seen:
+                          continue
+                      seen.add(fp)
+                      out = pathlib.Path(fp)
+                      out.parent.mkdir(parents=True, exist_ok=True)
+                      out.write_text(code.strip() + '\n')
+                      extracted.append(fp)
+                      print(f"  ✅ {fp}")
               return extracted
 
-          # Find matching devops-agent.md files
-          all_md = list(pathlib.Path('docs/requirements').rglob('devops-agent.md'))
-          print(f"Found {len(all_md)} devops-agent.md files")
+          agent_files = ['developer-agent.md','devops-agent.md','admin-agent.md','qa-agent.md']
+          all_md = list(pathlib.Path('docs/requirements').rglob('*.md'))
+          print(f"Found {len(all_md)} .md files\n")
 
           total = []
-          for md in all_md:
-              if req_filter == 'all' or req_filter in str(md).lower():
-                  print(f"\n📄 Processing: {md}")
-                  files = extract_files(md)
-                  total.extend(files)
+          for md in sorted(all_md):
+              if req_filter != 'all' and req_filter not in str(md).lower():
+                  continue
+              if not any(a in md.name for a in agent_files):
+                  continue
+              print(f"📄 {md}")
+              total.extend(extract_from_file(md))
 
-          print(f"\n✅ Total extracted: {len(total)} files")
+          print(f"\n✅ Total: {len(total)} files extracted")
           for f in total:
               print(f"  → {f}")
           PYEOF
 
       - name: Create sfdx-project.json
         run: |
-          if [ ! -f "sfdx-project.json" ]; then
-            cat > sfdx-project.json << 'EOF'
+          [ ! -f sfdx-project.json ] && cat > sfdx-project.json << 'EOF'
           {
-            "packageDirectories": [
-              {"path": "force-app", "default": true}
-            ],
+            "packageDirectories": [{"path": "force-app", "default": true}],
             "namespace": "",
             "sfdcLoginUrl": "https://login.salesforce.com",
             "sourceApiVersion": "59.0"
           }
           EOF
-            echo "✅ Created sfdx-project.json"
-          else
-            echo "ℹ️ sfdx-project.json already exists"
-          fi
 
-      - name: Check for extracted changes
+      - name: Check and commit changes
         id: check_changes
         run: |
           git add force-app/ manifest/ scripts/ sfdx-project.json 2>/dev/null || true
           if git diff --staged --quiet; then
             echo "has_changes=false" >> $GITHUB_OUTPUT
-            echo "ℹ️ No new Salesforce files to commit"
+            echo "ℹ️ Nothing new to commit"
           else
             echo "has_changes=true" >> $GITHUB_OUTPUT
-            echo "📦 Files ready to commit:"
+            echo "📦 Staging these files:"
             git diff --staged --name-only
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git config user.name "github-actions[bot]"
+            git commit -m "feat(sf): extract [${{ github.event.inputs.requirement_folder }}] $(date +'%Y-%m-%d %H:%M')"
+            git push origin main
           fi
 
-      - name: Commit extracted Salesforce files
-        if: steps.check_changes.outputs.has_changes == 'true'
-        run: |
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git config user.name "github-actions[bot]"
-          TIMESTAMP=$(date +'%Y-%m-%d %H:%M:%S')
-          REQ="${{ github.event.inputs.requirement_folder }}"
-          git commit -m "feat(salesforce): extract metadata for [$REQ] at $TIMESTAMP"
-          git push origin main
-          echo "✅ Committed and pushed to GitHub"
-
-  # ─────────────────────────────────────
-  # JOB 3: Deploy to Salesforce
-  # ─────────────────────────────────────
   deploy-to-salesforce:
     needs: extract-and-commit
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout latest code
-        uses: actions/checkout@v4       # ← Fix for Node.js warning
+      - uses: actions/checkout@v4
         with:
           ref: main
 
       - name: Install Salesforce CLI
-        run: |
-          npm install -g @salesforce/cli
-          sf --version
+        run: npm install -g @salesforce/cli
 
-      - name: Authenticate to Salesforce
+      - name: Authenticate
         run: |
-          ENV="${{ github.event.inputs.environment }}"
-          if [ "$ENV" == "production" ]; then
+          if [ "${{ github.event.inputs.environment }}" == "production" ]; then
             echo "${{ secrets.SFDX_AUTH_URL_PROD }}" > auth_url.txt
           else
             echo "${{ secrets.SFDX_AUTH_URL_SANDBOX }}" > auth_url.txt
           fi
           sf org login sfdx-url -f auth_url.txt -a target-org
           rm -f auth_url.txt
-          echo "✅ Authenticated to $ENV"
 
-      - name: Check force-app directory
-        id: check_dir
+      - name: Validate & Deploy
         run: |
           if [ -d "force-app/main/default" ]; then
-            echo "exists=true" >> $GITHUB_OUTPUT
-            echo "📁 force-app contents:"
-            find force-app -type f | head -30
+            echo "🔍 Validating..."
+            sf project deploy start \
+              --source-dir force-app \
+              --test-level RunLocalTests \
+              --dry-run --target-org target-org --wait 30
+            echo "🚀 Deploying to ${{ github.event.inputs.environment }}..."
+            sf project deploy start \
+              --source-dir force-app \
+              --test-level RunLocalTests \
+              --target-org target-org --wait 60
+            echo "✅ Done!"
           else
-            echo "exists=false" >> $GITHUB_OUTPUT
-            echo "⚠️ force-app/main/default not found"
+            echo "❌ force-app/main/default not found"
+            echo "The developer-agent.md may not contain extractable SFDX file paths"
+            exit 1
           fi
-
-      - name: Validate deployment (dry run)
-        if: steps.check_dir.outputs.exists == 'true'
-        run: |
-          echo "🔍 Running validation..."
-          sf project deploy start \
-            --source-dir force-app \
-            --test-level RunLocalTests \
-            --dry-run \
-            --target-org target-org \
-            --wait 30
-          echo "✅ Validation passed"
-
-      - name: Deploy to Salesforce
-        if: steps.check_dir.outputs.exists == 'true'
-        run: |
-          ENV="${{ github.event.inputs.environment }}"
-          echo "🚀 Deploying to $ENV..."
-          sf project deploy start \
-            --source-dir force-app \
-            --test-level RunLocalTests \
-            --target-org target-org \
-            --wait 60
-          echo "✅ Deployment to $ENV complete!"
-
-      - name: Deployment summary
-        if: always()
-        run: |
-          echo "================================"
-          echo "Deployment Summary"
-          echo "================================"
-          echo "Environment : ${{ github.event.inputs.environment }}"
-          echo "Requirement : ${{ github.event.inputs.requirement_folder }}"
-          echo "Triggered by: ${{ github.actor }}"
-          echo "Time        : $(date)"
-          echo "Status      : ${{ job.status }}"
-          echo "================================"
