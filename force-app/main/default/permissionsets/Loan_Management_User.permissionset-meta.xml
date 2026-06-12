@@ -13,11 +13,6 @@
     </objectPermissions>
     <fieldPermissions>
         <editable>true</editable>
-        <field>Loan_Application__c.Loan_Amount__c</field>
-        <readable>true</readable>
-    </fieldPermissions>
-    <fieldPermissions>
-        <editable>true</editable>
         <field>Loan_Application__c.Status__c</field>
         <readable>true</readable>
     </fieldPermissions>
